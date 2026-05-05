@@ -49,7 +49,7 @@ events = {
 };
 
 function setup() {
-  createCanvas(400, 400);
+  createCanvas(1000, 1000);
   frameRate(60);
 
   pg = createGraphics(400, 400); // NEW: off-screen canvas
