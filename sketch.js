@@ -49,10 +49,10 @@ events = {
 };
 
 function setup() {
-  createCanvas(1000, 1000);
+  createCanvas(windowWidth, windowWidth);
   frameRate(60);
 
-  pg = createGraphics(400, 400); // NEW: off-screen canvas
+  pg = createGraphics(width, height); // NEW: off-screen canvas
 
   setup_grid();
   fit_window();
