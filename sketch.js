@@ -1,10 +1,14 @@
 let pg; // off-screen canvas
 let grid;
 let $grid;
-let ui_select_brush_type;
-let ui_brush_size;
-let previous_pen_size = 100;
-let previous_brush_density = 1;
+var ui_select_brush_type;
+var ui_brush_size;
+var previous_pen_size = 100;
+var previous_brush_density = 1;
+
+
+var ui_scale = 1;
+
 const directions = [0, 1, 2, 3];
 
 let keep_log = true;
@@ -19,7 +23,7 @@ settings = {
     density: 20,
   },
   life: {
-    rate: 30, //range 0.0-1000.0
+    rate: 60, //range 0.0-1000.0
     max_children: 4,
   },
   sponge: {
@@ -34,7 +38,7 @@ settings = {
     bubble_size: 5,
   },
   virus: {
-    spread_rate: 40, //0-1000
+    spread_rate: 80, //0-1000
     max_age: 20,
     food_value: 50,
   },
@@ -56,6 +60,8 @@ function setup() {
 
   setup_grid();
   fit_window();
+  resize_pg();
+
   setup_ui();
 
   // draw the initial grid
@@ -63,10 +69,16 @@ function setup() {
 }
 
 function draw() {
-  background(220);
+  background(250);
 
   // draw cached grid
-  image(pg, 0, 0);
+  let grid_w = $grid.cols * $grid.size;
+  let grid_h = $grid.rows * $grid.size;
+
+  let offset_x = (width - grid_w) / 2;
+  let offset_y = (height - grid_h) / 2;
+
+  image(pg, offset_x, offset_y);
 
   move_tiles();
   run_events();
@@ -120,7 +132,7 @@ function redraw_tile(x, y) {
 function fit_window() {
   let a = width / $grid.cols;
   let b = height / $grid.rows;
-  $grid.size = min(a, b);
+  $grid.size = floor(min(a, b));
 }
 
 function predicate_in_canvas(x, y) {
@@ -131,9 +143,14 @@ function predicate_in_bounds(x, y) {
   return !(x < 0 || y < 0 || x >= $grid.cols || y >= $grid.rows);
 }
 
+function resize_pg() {
+  pg = createGraphics($grid.cols * $grid.size, $grid.rows * $grid.size);
+  pg.noSmooth();
+}
+
 function debug_color(x, y) {
   let type = grid[x][y].type;
-  if (type === "air") return color(150, 150, 150);
+  if (type === "air") return color(170, 170, 170);
   if (type === "water") return color(0, 0, 200);
   if (type === "sand") return color(250, 200, 0);
   if (type === "mud") return color(150, 90, 0);
@@ -150,10 +167,20 @@ function debug_color(x, y) {
 }
 
 function mousePressed() {
-  if (predicate_in_canvas(mouseX, mouseY)) {
-    paste_shape(mouseX, mouseY, "blob", settings.brush.size);
+  let grid_w = $grid.cols * $grid.size;
+  let grid_h = $grid.rows * $grid.size;
+
+  let offset_x = (width - grid_w) / 2;
+  let offset_y = (height - grid_h) / 2;
+
+  let mx = mouseX - offset_x;
+  let my = mouseY - offset_y;
+
+  if (mx >= 0 && mx < grid_w && my >= 0 && my < grid_h) {
+    paste_shape(mx, my, "blob", settings.brush.size);
   }
 }
+
 
 function paste_shape(x, y, type, size) {
   let data = {
@@ -166,6 +193,7 @@ function paste_shape(x, y, type, size) {
 
   let x1 = floor(x / $grid.size);
   let y1 = floor(y / $grid.size);
+
 
   if (type === "blob") {
     for (let i = 0; i < settings.brush.density; i++) {
@@ -389,6 +417,25 @@ function move_tiles() {
           grid[x - 1][y].type = "air";
           redraw_tile(x - 1, y);
         }
+
+        // interact with snow
+
+        if (up_type == "snow") {
+          grid[x][y - 1].type = "water";
+          redraw_tile(x, y - 1);
+        }
+        if (right_type == "snow") {
+          grid[x + 1][y].type = "water";
+          redraw_tile(x, y);
+        }
+        if (down_type == "snow") {
+          grid[x][y + 1].type = "water";
+          redraw_tile(x, y + 1);
+        }
+        if (left_type == "snow") {
+          grid[x - 1][y].type = "water";
+          redraw_tile(x - 1, y);
+        }
       }
 
       //GAS
@@ -501,33 +548,6 @@ function copy_tile(x1, y1, x2, y2) {
 
   //redraw_tile(x1, y1);
   redraw_tile(x2, y2);
-}
-
-function setup_ui() {
-  ui_select_brush_type = createSelect();
-  ui_select_brush_type.option("Air", "air");
-  ui_select_brush_type.option("Sand", "sand");
-  ui_select_brush_type.option("Water", "water");
-  ui_select_brush_type.option("Mud", "mud");
-  ui_select_brush_type.option("Stone", "stone");
-  ui_select_brush_type.option("Sponge", "sponge");
-  ui_select_brush_type.option("Life", "life");
-  ui_select_brush_type.option("Poison", "poison");
-  ui_select_brush_type.option("Wasp", "wasp");
-  ui_select_brush_type.option("Snow", "snow");
-  ui_select_brush_type.option("Lava", "lava");
-  ui_select_brush_type.option("Gas", "gas");
-  ui_select_brush_type.option("Virus", "virus");
-  ui_select_brush_type.position(0, height);
-  ui_select_brush_type.size(75, 25);
-
-  ui_brush_size = createSlider(1, 100, 1, 1);
-  ui_brush_size.position(0, height + 30);
-  ui_brush_size.size(200, 10);
-
-  ui_brush_density = createSlider(1, 100, 1, 1);
-  ui_brush_density.position(0, height + 60);
-  ui_brush_density.size(200, 10);
 }
 
 function detect_pen_size_change() {
