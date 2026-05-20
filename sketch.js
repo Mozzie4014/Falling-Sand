@@ -8,7 +8,7 @@ var previous_pen_size = 100;
 var previous_brush_density = 1;
 
 
-var ui_scale = 1;
+var ui_scale = 3;
 
 const directions = [0, 1, 2, 3];
 const drag_click_delay = 10
