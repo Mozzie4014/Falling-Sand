@@ -1,15 +1,17 @@
 let pg; // off-screen canvas
 let grid;
 let $grid;
+let mouse_pressed_timer;
 var ui_select_brush_type;
 var ui_brush_size;
 var previous_pen_size = 100;
 var previous_brush_density = 1;
 
 
-var ui_scale = 3;
+var ui_scale = 1;
 
 const directions = [0, 1, 2, 3];
+const drag_click_delay = 10
 
 let keep_log = true;
 let raw_log = [];
@@ -23,8 +25,8 @@ settings = {
     density: 20,
   },
   life: {
-    rate: 60, //range 0.0-1000.0
-    max_children: 4,
+    rate: 120, //range 0.0-1000.0 // def 40
+    max_children: 4,   
   },
   sponge: {
     cooldown: 10,
@@ -34,7 +36,7 @@ settings = {
     speed: 100, //1-1000
   },
   gas: {
-    speed: 100,
+    speed: 300,
     bubble_size: 5,
   },
   virus: {
@@ -80,6 +82,7 @@ function draw() {
 
   image(pg, offset_x, offset_y);
 
+  drag_place()
   move_tiles();
   run_events();
   detect_pen_size_change();
@@ -167,6 +170,7 @@ function debug_color(x, y) {
 }
 
 function mousePressed() {
+  mouse_pressed_timer = 0
   let grid_w = $grid.cols * $grid.size;
   let grid_h = $grid.rows * $grid.size;
 
@@ -556,19 +560,20 @@ function detect_pen_size_change() {
     previous_pen_size = size1;
     let size2 = size1 * (size1 * 0.01 * pow(size1, size1 * 0.0001));
     settings.brush.size = size2;
-
+    ui_brush_size_display.html(round(size2,1));
     console.log(`Pen size updated to ${size2}.`);
   }
 }
 
 function detect_brush_density_change() {
   if (previous_brush_density !== ui_brush_density.value() && !mouseIsPressed) {
-    let size1 = ui_brush_density.value();
-    previous_brush_density = size1;
-    let size2 = size1 * (size1 * 0.05 * pow(size1, size1 * 0.01));
-    settings.brush.density = size2;
-
-    console.log(`Brush density updated to ${size2}.`);
+    let density1 = ui_brush_density.value();
+    previous_brush_density = density1;
+    let density2 = density1 * (density1 * 0.05 * pow(density1, density1 * 0.01));
+    settings.brush.density = density2;
+    
+    ui_brush_density_display.html(round(density2,1));
+    console.log(`Brush density updated to ${density2}.`);
   }
 }
 
@@ -582,6 +587,27 @@ function run_events() {
       }
     }
   }
+}
+
+function drag_place() {
+  if (mouseIsPressed) {
+    mouse_pressed_timer ++
+  let grid_w = $grid.cols * $grid.size;
+  let grid_h = $grid.rows * $grid.size;
+
+  let offset_x = (width - grid_w) / 2;
+  let offset_y = (height - grid_h) / 2;
+
+  let mx = mouseX - offset_x;
+  let my = mouseY - offset_y;
+
+     if (mx >= 0 && mx < grid_w && my >= 0 && my < grid_h && mouse_pressed_timer > drag_click_delay) {
+    paste_shape(mx, my, "blob", settings.brush.size);
+  }
+
+  }
+  
+  
 }
 
 class createToggle {
