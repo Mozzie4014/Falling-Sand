@@ -2,16 +2,17 @@ let pg; // off-screen canvas
 let grid;
 let $grid;
 let mouse_pressed_timer;
+let logic_speed = 1;
+let updated_tiles;
 var ui_select_brush_type;
 var ui_brush_size;
 var previous_pen_size = 100;
 var previous_brush_density = 1;
 
-
 var ui_scale = 3;
 
 const directions = [0, 1, 2, 3];
-const drag_click_delay = 10
+const drag_click_delay = 10;
 
 let keep_log = true;
 let raw_log = [];
@@ -26,7 +27,7 @@ settings = {
   },
   life: {
     rate: 120, //range 0.0-1000.0 // def 40
-    max_children: 4,   
+    max_children: 4,
   },
   sponge: {
     cooldown: 10,
@@ -72,6 +73,7 @@ function setup() {
 
 function draw() {
   background(250);
+  updated_tiles = [];
 
   // draw cached grid
   let grid_w = $grid.cols * $grid.size;
@@ -82,8 +84,11 @@ function draw() {
 
   image(pg, offset_x, offset_y);
 
-  drag_place()
-  move_tiles();
+  drag_place();
+
+  for (let i = 0; i < logic_speed; i++) {
+    move_tiles();
+  }
   run_events();
   detect_pen_size_change();
   detect_brush_density_change();
@@ -91,6 +96,7 @@ function draw() {
     //
     //new_terrain(0.05,10,50)
   }
+  render_updated_tiles();
 }
 
 function setup_grid() {
@@ -114,6 +120,22 @@ function setup_grid() {
   }
 }
 
+function render_updated_tiles() {
+  updated_tiles2 = [];
+  // remove duplicate keys
+  for (let i = 0; i < updated_tiles.length; i++) {
+    if (!updated_tiles2.includes(updated_tiles[i])) {
+      updated_tiles2.push(updated_tiles[i]);
+    }
+  }
+
+  // render
+  for (let i = 0; i < updated_tiles2.length; i++) {
+    let tile = updated_tiles2[i];
+    redraw_tile(tile[0], tile[1]);
+  }
+}
+
 function render_grid_to_pg() {
   pg.noStroke();
   for (let x = 0; x < $grid.cols; x++) {
@@ -123,6 +145,11 @@ function render_grid_to_pg() {
       pg.square(x * $grid.size, y * $grid.size, $grid.size);
     }
   }
+}
+
+function update_render_buffer(x, y) {
+  // ----
+  updated_tiles.push([x, y]);
 }
 
 function redraw_tile(x, y) {
@@ -170,7 +197,7 @@ function debug_color(x, y) {
 }
 
 function mousePressed() {
-  mouse_pressed_timer = 0
+  mouse_pressed_timer = 0;
   let grid_w = $grid.cols * $grid.size;
   let grid_h = $grid.rows * $grid.size;
 
@@ -185,7 +212,6 @@ function mousePressed() {
   }
 }
 
-
 function paste_shape(x, y, type, size) {
   let data = {
     type: type,
@@ -197,7 +223,6 @@ function paste_shape(x, y, type, size) {
 
   let x1 = floor(x / $grid.size);
   let y1 = floor(y / $grid.size);
-
 
   if (type === "blob") {
     for (let i = 0; i < settings.brush.density; i++) {
@@ -309,22 +334,22 @@ function move_tiles() {
         if (grid[x][y].sponge_cooldown <= 0) {
           if (down_type == "water") {
             grid[x][y + 1].type = "air";
-            redraw_tile(x, y + 1);
+            update_render_buffer(x, y + 1);
             grid[x][y].sponge_cooldown = settings.sponge.cooldown;
           }
           if (up_type == "water") {
             grid[x][y - 1].type = "air";
-            redraw_tile(x, y - 1);
+            update_render_buffer(x, y - 1);
             grid[x][y].sponge_cooldown = settings.sponge.cooldown;
           }
           if (right_type == "water") {
             grid[x + 1][y].type = "air";
-            redraw_tile(x + 1, y);
+            update_render_buffer(x + 1, y);
             grid[x][y].sponge_cooldown = settings.sponge.cooldown;
           }
           if (left_type == "water") {
             grid[x - 1][y].type = "air";
-            redraw_tile(x - 1, y);
+            update_render_buffer(x - 1, y);
             grid[x][y].sponge_cooldown = settings.sponge.cooldown;
           }
         }
@@ -374,6 +399,27 @@ function move_tiles() {
         }
       }
 
+      // POISON
+
+      if (tile.type === "poison") {
+        if (down_type == "life") {
+          grid[x][y + 1].type = "virus";
+          update_render_buffer(x, y + 1);
+        }
+        if (up_type == "life") {
+          grid[x][y - 1].type = "virus";
+          update_render_buffer(x, y - 1);
+        }
+        if (right_type == "life") {
+          grid[x + 1][y].type = "virus";
+          update_render_buffer(x + 1, y);
+        }
+        if (left_type == "life") {
+          grid[x - 1][y].type = "virus";
+          update_render_buffer(x - 1, y);
+        }
+      }
+
       // LAVA
       if (tile.type === "lava") {
         if (floor(random(0, 20)) == 0 && up) {
@@ -388,57 +434,57 @@ function move_tiles() {
 
         if (up_type == "water") {
           grid[x][y].type = "stone";
-          redraw_tile(x, y);
+          update_render_buffer(x, y);
         }
         if (right_type == "water") {
           grid[x][y].type = "stone";
-          redraw_tile(x, y);
+          update_render_buffer(x, y);
         }
         if (down_type == "water") {
           grid[x][y].type = "stone";
-          redraw_tile(x, y);
+          update_render_buffer(x, y);
         }
         if (left_type == "water") {
           grid[x][y].type = "stone";
-          redraw_tile(x, y);
+          update_render_buffer(x, y);
         }
 
         //interact with life, lava kills life
 
         if (up_type == "life") {
           grid[x][y - 1].type = "air";
-          redraw_tile(x, y - 1);
+          update_render_buffer(x, y - 1);
         }
         if (right_type == "life") {
           grid[x + 1][y].type = "air";
-          redraw_tile(x, y);
+          update_render_buffer(x, y);
         }
         if (down_type == "life") {
           grid[x][y + 1].type = "air";
-          redraw_tile(x, y + 1);
+          update_render_buffer(x, y + 1);
         }
         if (left_type == "life") {
           grid[x - 1][y].type = "air";
-          redraw_tile(x - 1, y);
+          update_render_buffer(x - 1, y);
         }
 
         // interact with snow
 
         if (up_type == "snow") {
           grid[x][y - 1].type = "water";
-          redraw_tile(x, y - 1);
+          update_render_buffer(x, y - 1);
         }
         if (right_type == "snow") {
           grid[x + 1][y].type = "water";
-          redraw_tile(x, y);
+          update_render_buffer(x, y);
         }
         if (down_type == "snow") {
           grid[x][y + 1].type = "water";
-          redraw_tile(x, y + 1);
+          update_render_buffer(x, y + 1);
         }
         if (left_type == "snow") {
           grid[x - 1][y].type = "water";
-          redraw_tile(x - 1, y);
+          update_render_buffer(x - 1, y);
         }
       }
 
@@ -488,7 +534,7 @@ function move_tiles() {
             grid[x][y].virus_age -= settings.virus.food_value;
             grid[x][y - 1].type = "virus";
             grid[x][y - 1].virus_age = 0;
-            redraw_tile(x, y - 1);
+            update_render_buffer(x, y - 1);
           }
         }
         if (right_type === "life") {
@@ -496,7 +542,7 @@ function move_tiles() {
             grid[x][y].virus_age -= settings.virus.food_value;
             grid[x + 1][y].type = "virus";
             grid[x + 1][y].virus_age = 0;
-            redraw_tile(x + 1, y);
+            update_render_buffer(x + 1, y);
           }
         }
         if (down_type === "life") {
@@ -504,7 +550,7 @@ function move_tiles() {
             grid[x][y].virus_age -= settings.virus.food_value;
             grid[x][y + 1].type = "virus";
             grid[x][y + 1].virus_age = 0;
-            redraw_tile(x, y + 1);
+            update_render_buffer(x, y + 1);
           }
         }
         if (left_type === "life") {
@@ -512,14 +558,14 @@ function move_tiles() {
             grid[x][y].virus_age -= settings.virus.food_value;
             grid[x - 1][y].type = "virus";
             grid[x - 1][y].virus_age = 0;
-            redraw_tile(x - 1, y);
+            update_render_buffer(x - 1, y);
           }
         }
 
         grid[x][y].virus_age += 1;
         if (grid[x][y].virus_age >= settings.virus.max_age) {
           grid[x][y].type = "air";
-          redraw_tile(x, y);
+          update_render_buffer(x, y);
         }
       }
     }
@@ -536,8 +582,13 @@ function swap_tiles(x1, y1, x2, y2) {
   grid[x1][y1].timer = 0;
   grid[x2][y2].timer = 0;
 
-  redraw_tile(x1, y1);
-  redraw_tile(x2, y2);
+  update_render_buffer(x1, y1);
+  update_render_buffer(x2, y2);
+}
+
+function ui_pressed_save_canvas() {
+  let ID = str(floor(random(10000000, 99999999)));
+  saveCanvas(ID);
 }
 
 function copy_tile(x1, y1, x2, y2) {
@@ -550,8 +601,8 @@ function copy_tile(x1, y1, x2, y2) {
   grid[x1][y1].timer = 0;
   grid[x2][y2].timer = 0;
 
-  //redraw_tile(x1, y1);
-  redraw_tile(x2, y2);
+  //update_render_buffer(x1, y1);
+  update_render_buffer(x2, y2);
 }
 
 function detect_pen_size_change() {
@@ -560,7 +611,7 @@ function detect_pen_size_change() {
     previous_pen_size = size1;
     let size2 = size1 * (size1 * 0.01 * pow(size1, size1 * 0.0001));
     settings.brush.size = size2;
-    ui_brush_size_display.html(round(size2,1));
+    ui_brush_size_display.html(round(size2, 1));
     console.log(`Pen size updated to ${size2}.`);
   }
 }
@@ -569,10 +620,11 @@ function detect_brush_density_change() {
   if (previous_brush_density !== ui_brush_density.value() && !mouseIsPressed) {
     let density1 = ui_brush_density.value();
     previous_brush_density = density1;
-    let density2 = density1 * (density1 * 0.05 * pow(density1, density1 * 0.01));
+    let density2 =
+      density1 * (density1 * 0.05 * pow(density1, density1 * 0.01));
     settings.brush.density = density2;
-    
-    ui_brush_density_display.html(round(density2,1));
+
+    ui_brush_density_display.html(round(density2, 1));
     console.log(`Brush density updated to ${density2}.`);
   }
 }
@@ -591,23 +643,26 @@ function run_events() {
 
 function drag_place() {
   if (mouseIsPressed) {
-    mouse_pressed_timer ++
-  let grid_w = $grid.cols * $grid.size;
-  let grid_h = $grid.rows * $grid.size;
+    mouse_pressed_timer++;
+    let grid_w = $grid.cols * $grid.size;
+    let grid_h = $grid.rows * $grid.size;
 
-  let offset_x = (width - grid_w) / 2;
-  let offset_y = (height - grid_h) / 2;
+    let offset_x = (width - grid_w) / 2;
+    let offset_y = (height - grid_h) / 2;
 
-  let mx = mouseX - offset_x;
-  let my = mouseY - offset_y;
+    let mx = mouseX - offset_x;
+    let my = mouseY - offset_y;
 
-     if (mx >= 0 && mx < grid_w && my >= 0 && my < grid_h && mouse_pressed_timer > drag_click_delay) {
-    paste_shape(mx, my, "blob", settings.brush.size);
+    if (
+      mx >= 0 &&
+      mx < grid_w &&
+      my >= 0 &&
+      my < grid_h &&
+      mouse_pressed_timer > drag_click_delay
+    ) {
+      paste_shape(mx, my, "blob", settings.brush.size);
+    }
   }
-
-  }
-  
-  
 }
 
 class createToggle {
@@ -630,7 +685,7 @@ class createToggle {
   }
 }
 
-function getTime() {
+function get_time() {
   return;
 }
 
@@ -640,7 +695,7 @@ function new_terrain(smoothing, amplitude, level) {
 
     for (let y2 = y; y2 < $grid.rows; y2++) {
       grid[x][y2].type = "stone";
-      redraw_tile(x, y2);
+      update_render_buffer(x, y2);
     }
   }
 }
