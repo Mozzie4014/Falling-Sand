@@ -87,6 +87,7 @@ function setup_ui() {
   // ---------- SAVE BUTTON ----------
   ui_save_canvas = createButton("Save Canvas");
   ui_save_canvas.position(x, y);
+  ui_save_canvas. mousePressed(ui_pressed_save_canvas)
   ui_save_canvas.size(90 * s, 24 * s);
   ui_save_canvas.style("background", "#3a7bd5");
   ui_save_canvas.style("color", "white");
